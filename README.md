@@ -1,264 +1,222 @@
-# NIRVAAH - Civic Issue Reporting System
+# NIRVAAH — Civic Issue Reporting System
 
-NIRVAAH is a full-stack civic issue reporting platform where citizens can report local problems (potholes, garbage, water leakage, streetlights, etc.), track status updates, and view issues on a live map. It also includes an admin workflow for moderation, analytics, prioritization, and transparent resolution evidence.
+NIRVAAH is a Node.js/Express civic reporting application for citizens and municipal administrators. Citizens can report local issues with photos and GPS coordinates, browse complaints on maps, vote on issues, track their own reports, submit feedback after resolution, receive notifications, and use a simple rule-based chatbot. Administrators can manage complaint status, view analytics, operate a priority workflow, and publish transparent resolution evidence.
 
-## Features
+## What is in this codebase
 
-### Citizen Features
+- **Express API and EJS web app** served from a single Node.js process.
+- **MongoDB persistence** through Mongoose models for citizens, admins, complaints, notifications, OTPs, and priority workflows.
+- **JWT authentication** with Passport JWT guards for protected API routes.
+- **Cloudinary image uploads** for complaint photos and resolution evidence.
+- **Socket.IO notifications** emitted to user-specific rooms when notifications are created.
+- **Internationalization** for English and Hindi through `i18n`, locale JSON files, and language routes.
+- **PWA assets** including a manifest, install prompt helpers, offline page, and service workers.
 
-- Register/login with JWT authentication
-- Optional OTP login flow via email
-- Create complaints with up to 5 image uploads
-- Auto-suggested category from complaint text/image filename (rule-based AI mock)
-- Duplicate complaint detection in nearby radius
-- Track own complaints and status history
-- Upvote other complaints
-- View map-based complaints
-- Submit post-resolution feedback (rating/comment/satisfaction)
-- Receive notifications (status changes, upvotes)
-- Leaderboard and public profile views
+## Core Features
 
-### Admin Features
+### Citizen functionality
 
-- Admin registration/login (protected by admin secret)
-- Complaint moderation and status updates
-- Analytics dashboard (status, category, trend, top users, upvotes, average resolution time)
-- Priority dashboard with filters and countdown metadata
-- Priority workflow transitions (`pending -> approved -> in_progress -> resolved`)
-- Auto-escalation and near-deadline alert jobs
-- Transparent Resolution System (TRS):
-  - Mobile-only resolution evidence submission
-  - GPS validation + suspicious flagging
-  - Supervisor review for suspicious submissions
-  - Public evidence endpoint with privacy-safe response
+- Register and log in as a citizen.
+- Log in with email OTP after password verification; OTPs are stored in memory and expire after five minutes.
+- Create complaints with title, description, category, location, address/landmark, and up to five images.
+- Receive a rule-based category suggestion from complaint text and uploaded image filename.
+- Automatic duplicate detection for active complaints in the same category within 500 meters.
+- Browse public complaints, map markers, issue detail pages, and nearby issues.
+- Track personal complaints and status history.
+- Upvote or remove an upvote from complaints.
+- Submit feedback for resolved complaints.
+- View notifications, leaderboard, and profile pages.
+- Use the rule-based chatbot powered by `chatbotData.json`.
 
-### Platform Features
+### Admin functionality
 
-- Socket.IO real-time notification emission
-- Cloudinary-based image storage and optimization
-- i18n language switching with cookie persistence
-- EJS-rendered UI pages for citizen/admin panels
-- Centralized error handling middleware
-- PWA service worker with offline fallback and background sync hook
+- Register an admin account when the correct `ADMIN_SECRET` is supplied.
+- Log in through the same auth API as citizens; admin accounts are checked before citizen accounts.
+- List and filter complaints, update complaint status, and add admin notes.
+- View analytics for statuses, categories, trends, top users, upvotes, and resolution timing.
+- Use the priority dashboard to track derived priority, deadlines, overdue status, and workflow state.
+- Trigger priority escalation and deadline-alert jobs manually through admin APIs.
+- Submit Transparent Resolution System evidence from a mobile user agent with GPS and a photo.
+- Review suspicious resolution submissions and either approve them or reopen the complaint.
 
-## User Roles
+### Transparent Resolution System (TRS)
 
-### Citizen
-
-- Report complaints
-- Vote on others' complaints
-- View map/issues/leaderboard
-- Submit feedback for resolved issues
-- Manage profile and notifications
-
-### Admin
-
-- Access admin dashboards
-- Manage complaint lifecycle
-- Use priority workflow tools
-- Submit and review TRS resolution evidence
+TRS is implemented on complaint resolution routes. Resolution evidence is admin-only, mobile-only, and stored separately in Cloudinary. The server records its own timestamp, validates capture coordinates, checks distance from the original complaint with the Haversine formula, flags suspicious submissions, stores a deterministic evidence hash, and prevents evidence from being overwritten after first submission.
 
 ## Tech Stack
 
-- Backend: Node.js, Express.js
-- View engine: EJS
-- Database: MongoDB (Mongoose)
-- Authentication: JWT + Passport JWT
-- Password hashing: bcryptjs
-- Uploads: Multer + Cloudinary + multer-storage-cloudinary
-- Validation: express-validator
-- Realtime: Socket.IO
-- Notifications/Mail: Nodemailer
-- Internationalization: i18n
-- Security and ops: Helmet, CORS, Compression, Morgan, Cookie Parser, Dotenv
-
-## System Architecture
-
-High-level flow:
-
-1. Client (EJS pages + static JS) calls REST APIs.
-2. Express routes delegate to controllers.
-3. Controllers handle validation and business logic.
-4. Mongoose models persist data in MongoDB.
-5. Notifications are stored and optionally emitted via Socket.IO.
-6. Files are uploaded to Cloudinary via Multer storage adapters.
-7. Background scheduler runs escalation and deadline alert jobs.
+- **Runtime:** Node.js
+- **Server:** Express.js, HTTP server, Socket.IO
+- **Views:** EJS templates
+- **Database:** MongoDB with Mongoose
+- **Authentication:** JSON Web Tokens, Passport JWT, bcryptjs
+- **Uploads:** Multer, multer-storage-cloudinary, Cloudinary
+- **Validation and middleware:** express-validator, Helmet, CORS, compression, Morgan, cookie-parser
+- **Email:** Nodemailer
+- **i18n:** i18n with English and Hindi locale files
+- **PWA:** Web app manifest, service workers, offline fallback page, IndexedDB helper
 
 ## Project Structure
 
 ```text
 .
-|-- config/                 # DB, cloudinary, passport, mailer, seed
-|-- controllers/            # Business logic handlers
-|-- middleware/             # Auth/admin guards, upload, error handling
-|-- models/                 # Mongoose data models
-|-- routes/                 # API + EJS page routing
-|-- services/               # Priority module services and scheduler
-|-- public/                 # CSS, JS, PWA assets, service worker, offline page
-|-- views/                  # EJS templates (citizen/admin/partials)
-|-- locales/                # Translation dictionaries (en, hi)
-|-- server.js               # Application entry point
-|-- package.json
-|-- chatbotData.json
-`-- add_translations.js
+├── config/                 # Database, Passport, Cloudinary, mailer, and seed setup
+├── controllers/            # Request handlers for auth, complaints, admin, TRS, notifications, users, chatbot
+├── middleware/             # JWT protection, admin guards, upload handlers, error handling
+├── models/                 # Mongoose schemas
+├── routes/                 # API routes and EJS page routes
+├── services/               # Priority workflow, deadline, and escalation services
+├── utils/                  # Shared utilities such as Haversine distance helpers
+├── views/                  # EJS pages and partials for citizen/admin UI
+├── public/                 # CSS, browser JS, service workers, PWA manifest, offline page
+├── locales/                # Translation files: en.json and hi.json
+├── chatbotData.json        # Rule-based chatbot content
+├── add_translations.js     # Translation helper script
+├── server.js               # Application entry point
+├── package.json            # Scripts and dependencies
+└── package-lock.json
 ```
+
+## Prerequisites
+
+- Node.js 18 or newer
+- npm
+- MongoDB database
+- Cloudinary account and API credentials
+- SMTP credentials if you want OTP emails to be delivered instead of printed in demo mode
 
 ## Environment Variables
 
-Create a `.env` file in project root.
+Create a `.env` file in the repository root.
 
 ```env
-# App
+# Application
 NODE_ENV=development
 PORT=5000
 
 # Database
 MONGO_URI=mongodb://127.0.0.1:27017/nirvaah
 
-# Auth
-JWT_SECRET=replace_with_strong_secret
+# Authentication
+JWT_SECRET=replace_with_a_long_random_secret
 JWT_EXPIRE=7d
 ADMIN_SECRET=replace_with_admin_registration_secret
 
-# Cloudinary
+# Cloudinary uploads
 CLOUDINARY_CLOUD_NAME=your_cloud_name
 CLOUDINARY_API_KEY=your_api_key
 CLOUDINARY_API_SECRET=your_api_secret
 
-# SMTP / OTP mail (authController uses Gmail service with USER/PASS)
-SMTP_USER=you@example.com
-SMTP_PASS=your_app_password
+# OTP email delivery
+SMTP_USER=your_gmail_or_smtp_username
+SMTP_PASS=your_smtp_app_password
 
-# Optional (used by config/mailer.js)
+# Optional generic SMTP transport used by config/mailer.js
 SMTP_HOST=smtp.example.com
 SMTP_PORT=587
 SMTP_SECURE=false
 
-# TRS validation tuning (optional)
+# Transparent Resolution System tuning
 TRS_DISTANCE_THRESHOLD_M=100
 TRS_GPS_ACCURACY_MAX_M=100
-
-# Optional front-end client URL (legacy)
-CLIENT_URL=http://localhost:3000
 ```
 
+If `SMTP_USER` or `SMTP_PASS` is missing, OTP login runs in demo mode and prints the OTP to the server console.
 
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js 18+
-- npm 9+
-- MongoDB instance
-- Cloudinary account
-- SMTP credentials (optional for demo, required for real OTP emails)
-
-### Installation
+## Installation
 
 ```bash
-git clone <your-repository-url>
+git clone <repository-url>
 cd NIRVAAH-Civic-issue-reporting-system
 npm install
 ```
 
-### Run in Development
+## Running the Application
 
 ```bash
+# Development with nodemon
 npm run dev
-```
 
-### Run in Production Mode
-
-```bash
+# Production-style start
 npm start
 ```
 
-### Optional: Seed Database
+By default, the app runs at:
+
+- Web app: `http://localhost:5000`
+- Health check: `GET http://localhost:5000/api/health`
+
+## Optional Database Seed
 
 ```bash
 npm run seed
 ```
 
-### Verify Service
+The seed script connects to MongoDB, clears existing users/admins/complaints, creates sample citizens and admins, and inserts sample complaints.
 
-- App: `http://localhost:5000`
-- Health check: `GET /api/health`
+## API Overview
 
-## API Reference
+### Authentication: `/api/auth`
 
-Base paths:
+| Method | Path | Auth | Purpose |
+| --- | --- | --- | --- |
+| `POST` | `/register` | Public | Create citizen account, or admin account with `ADMIN_SECRET` |
+| `POST` | `/login` | Public | Password login for admin or citizen |
+| `POST` | `/send-otp` | Public | Verify password and send/create OTP session |
+| `POST` | `/verify-otp` | Public | Exchange valid OTP session for JWT |
+| `POST` | `/resend-otp` | Public | Generate a fresh OTP for an existing session |
+| `GET` | `/me` | JWT | Return current user/admin profile |
+| `POST` | `/logout` | JWT | Client-side logout confirmation endpoint |
+| `PUT` | `/profile` | JWT | Update profile fields |
 
-- `/api/auth`
-- `/api/complaints`
-- `/api/admin`
-- `/api/admin-priority`
-- `/api/notifications`
-- `/api/users`
-- `/api/chatbot`
+### Complaints: `/api/complaints`
 
-### Auth Routes
+| Method | Path | Auth | Purpose |
+| --- | --- | --- | --- |
+| `GET` | `/` | Public | List complaints with filters and pagination |
+| `POST` | `/` | JWT | Create complaint with up to five `images` files |
+| `GET` | `/map` | Public | Return lightweight complaint markers |
+| `GET` | `/my` | JWT | List current user's complaints |
+| `GET` | `/:id` | Public | Fetch one complaint |
+| `POST` | `/:id/vote` | JWT | Toggle current user's vote |
+| `DELETE` | `/:id` | JWT | Delete complaint as owner or admin |
+| `GET` | `/:id/feedback` | JWT | Read current user's feedback for complaint |
+| `POST` | `/:id/feedback` | JWT | Submit/update feedback for a resolved complaint |
+| `GET` | `/:id/resolution/public` | Public | Read public resolution evidence summary |
+| `POST` | `/:id/resolution` | Admin JWT | Submit mobile GPS/photo resolution evidence |
+| `PATCH` | `/:id/resolution/review` | Admin JWT | Review suspicious resolution evidence |
 
-- `POST /api/auth/register`
-- `POST /api/auth/login`
-- `POST /api/auth/send-otp`
-- `POST /api/auth/verify-otp`
-- `POST /api/auth/resend-otp`
-- `GET /api/auth/me` (protected)
-- `POST /api/auth/logout` (protected)
-- `PUT /api/auth/profile` (protected)
+### Admin: `/api/admin`
 
-### Complaint Routes
+| Method | Path | Auth | Purpose |
+| --- | --- | --- | --- |
+| `GET` | `/complaints` | Admin JWT | List complaints for admin management |
+| `PATCH` | `/complaints/:id/status` | Admin JWT | Update status/admin note |
+| `GET` | `/analytics` | Admin JWT | Return dashboard analytics |
+| `GET` | `/users` | Admin JWT | List citizens |
 
-- `GET /api/complaints`
-- `POST /api/complaints` (protected, multipart images)
-- `GET /api/complaints/map`
-- `GET /api/complaints/my` (protected)
-- `GET /api/complaints/:id`
-- `POST /api/complaints/:id/vote` (protected)
-- `DELETE /api/complaints/:id` (owner/admin)
-- `GET /api/complaints/:id/feedback` (protected)
-- `POST /api/complaints/:id/feedback` (protected)
+### Priority module: `/api/admin-priority`
 
-TRS routes:
+| Method | Path | Auth | Purpose |
+| --- | --- | --- | --- |
+| `GET` | `/dashboard` | Admin JWT | List workflow cards with priority and countdown metadata |
+| `PATCH` | `/:complaintId/status` | Admin JWT | Transition priority workflow status |
+| `POST` | `/jobs/escalation` | Admin JWT | Run escalation job immediately |
+| `POST` | `/jobs/deadline-alerts` | Admin JWT | Run deadline alert job immediately |
 
-- `GET /api/complaints/:id/resolution/public`
-- `POST /api/complaints/:id/resolution` (protected, admin, mobile-only)
-- `PATCH /api/complaints/:id/resolution/review` (protected, admin)
+### Other APIs
 
-### Admin Routes
+| Base path | Routes |
+| --- | --- |
+| `/api/notifications` | `GET /`, `PATCH /read-all`, `PATCH /:id/read` |
+| `/api/users` | `GET /leaderboard`, `GET /profile/:id` |
+| `/api/chatbot` | `GET /data`, `POST /message` |
+| `/lang` | `GET /dict/:locale`, `POST /set`, `GET /:locale` |
+| `/api/health` | `GET` |
 
-- `GET /api/admin/complaints`
-- `PATCH /api/admin/complaints/:id/status`
-- `GET /api/admin/analytics`
-- `GET /api/admin/users`
+## Web Pages
 
-### Admin Priority Module Routes
-
-- `GET /api/admin-priority/dashboard`
-- `PATCH /api/admin-priority/:complaintId/status`
-- `POST /api/admin-priority/jobs/escalation`
-- `POST /api/admin-priority/jobs/deadline-alerts`
-
-### Notification Routes
-
-- `GET /api/notifications`
-- `PATCH /api/notifications/read-all`
-- `PATCH /api/notifications/:id/read`
-
-### User Routes
-
-- `GET /api/users/leaderboard`
-- `GET /api/users/profile/:id`
-
-### Chatbot Routes
-
-- `GET /api/chatbot/data`
-- `POST /api/chatbot/message`
-
-## Web Routes (EJS Pages)
-
-Public pages:
+### Public pages
 
 - `/`
 - `/login`
@@ -268,7 +226,7 @@ Public pages:
 - `/leaderboard`
 - `/terms`
 
-Citizen pages:
+### Citizen pages
 
 - `/dashboard`
 - `/report`
@@ -279,8 +237,9 @@ Citizen pages:
 - `/nearby`
 - `/issue`
 
-Admin pages:
+### Admin pages
 
+- `/admin` redirects to `/admin/login`
 - `/admin/login`
 - `/admin/register`
 - `/admin/dashboard`
@@ -291,91 +250,52 @@ Admin pages:
 - `/admin/map`
 - `/admin/leaderboard`
 
-## Business Rules and Workflows
+## Important Workflows and Rules
 
-### Complaint Lifecycle
+### Complaint creation
 
-- Complaint starts as `pending`
-- Admin can move status to `in_progress`
-- `resolved` status is controlled by TRS resolution submission workflow
+1. A JWT-authenticated citizen submits complaint metadata, coordinates, and one to five images.
+2. The server requires coordinates and at least one uploaded image.
+3. Images are uploaded to Cloudinary under `nirvaah/complaints`.
+4. A rule-based category suggestion is stored as `aiSuggestedCategory`.
+5. Active same-category complaints within 500 meters are treated as potential duplicates.
+6. The reporter receives points, and priority/deadline information is updated.
 
-### Priority Workflow
+### Status and resolution
 
-- Priority is derived from vote count (`low`, `medium`, `high`)
-- Deadlines are assigned by priority
-- Escalation occurs when overdue complaints cross thresholds
-- Near-deadline alerts are generated periodically
+- New complaints start as `pending`.
+- Admins can update status to `pending`, `in_progress`, or `resolved` through admin APIs.
+- TRS resolution submission also sets the complaint to `resolved`, stores evidence, records a status history entry, awards resolution points, and notifies the complaint owner.
+- Suspicious TRS evidence can be approved or rejected by an admin; rejected evidence reopens the complaint as `in_progress`.
 
-### Transparent Resolution System (TRS)
+### Priority workflow
 
-- Resolution evidence upload is admin-only and mobile-only
-- GPS accuracy and distance from original complaint location are validated
-- Suspicious submissions are flagged for supervisor review
-- Public endpoint exposes evidence summary while hiding sensitive capture coordinates
-- Resolution evidence is enforced as write-once (immutable after first submission)
+- Priority is derived primarily from vote count.
+- Deadlines are derived from priority.
+- A background scheduler starts with the app and periodically runs escalation and deadline-alert checks.
+- Admins can also trigger these jobs manually through API routes.
 
-### Points and Gamification
+### Notifications
 
-- Complaint creation gives points
-- Upvotes increase complaint owner points
-- Resolution completion contributes additional points
-- Leaderboard reflects engagement
+Notifications are stored in MongoDB and emitted over Socket.IO when `global.io` is available. Clients join a room named after their user ID.
 
-### Duplicate Detection
+## PWA and Offline Support
 
-- New complaints are checked for nearby active complaints in the same category
-- Potential duplicates are linked to existing issues
+The project includes PWA files under `public/pwa/`, a root service worker under `public/sw.js`, an offline fallback page, browser API helpers, IndexedDB support, and an install-prompt partial used by EJS pages.
 
-## Security and Reliability
-
-- JWT auth with Passport strategy
-- Role-based access guards (`protect`, `adminOnly`)
-- Input validation using `express-validator`
-- Upload filtering and size limits in Multer
-- Helmet headers and CORS handling
-- Centralized error middleware for consistent API responses
-- MongoDB reconnect retry logic in database config
-
-## PWA and Offline Behavior
-
-- Service worker caches core app-shell assets
-- Offline HTML fallback page for navigation failures
-- API calls return offline JSON error when network is unavailable
-- Background sync event hook for pending offline complaint sync
-- Manifest and install prompt assets present under `public/pwa/`
-
-## Scripts
+## Available npm Scripts
 
 ```bash
-npm start      # Start server (node server.js)
+npm start      # Start server with node server.js
 npm run dev    # Start server with nodemon
-npm run seed   # Seed database
+npm run seed   # Seed MongoDB with sample data
 ```
 
-## Deployment Notes
+## Development Notes
 
-- Set all required environment variables in production.
-- Use a managed MongoDB cluster for reliability.
-- Use secure Cloudinary credentials and restricted API keys.
-- Configure SMTP app password/secrets securely.
-- Set proper CORS origin restrictions before production rollout.
-- Consider process manager (PM2/systemd/container) for uptime.
-
-## Known Limitations
-
-- OTP sessions are currently in-memory; they reset on server restart.
-- Chatbot is rule-based (not LLM-powered).
-- Some authorization logic is enforced mainly in API/middleware, while EJS pages are rendered directly.
-- Scheduler uses in-process intervals; distributed deployments need a coordinated job strategy.
-
-## Future Enhancements
-
-- Redis-backed OTP/session store
-- Queue-based background jobs (BullMQ/Agenda)
-- AI-based complaint category classification from image/text
-- Department-level routing and SLA dashboards
-- Push notification subscriptions for production-scale alerting
-
-## License
-
-No license file is currently included. Add a license (for example, MIT) if you plan to distribute this project publicly.
+- EJS page routes do not apply server-side page auth; templates and browser scripts are expected to enforce UI behavior while APIs enforce JWT/admin protection.
+- `helmet` is configured with Content Security Policy disabled to keep the existing EJS/static asset flow working.
+- CORS is currently open to all origins.
+- OTP data is stored in an in-memory `Map`, so OTP sessions disappear when the server restarts.
+- The priority scheduler is in-process; multi-instance deployments need an external scheduler or distributed locking.
+- No license file is currently included.
