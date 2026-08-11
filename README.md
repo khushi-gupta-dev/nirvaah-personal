@@ -20,7 +20,7 @@ NIRVAAH is a Node.js/Express civic reporting application for citizens and munici
 - Log in with email OTP after password verification; OTPs are stored in memory and expire after five minutes.
 - Create complaints with title, description, category, location, address/landmark, and up to five images.
 - Receive a rule-based category suggestion from complaint text and uploaded image filename.
-- Automatic duplicate detection for active complaints in the same category within 500 meters.
+- Automatic duplicate detection for active complaints in the same category within 100 meters.
 - Browse public complaints, map markers, issue detail pages, and nearby issues.
 - Track personal complaints and status history.
 - Upvote or remove an upvote from complaints.
@@ -258,7 +258,7 @@ The seed script connects to MongoDB, clears existing users/admins/complaints, cr
 2. The server requires coordinates and at least one uploaded image.
 3. Images are uploaded to Cloudinary under `nirvaah/complaints`.
 4. A rule-based category suggestion is stored as `aiSuggestedCategory`.
-5. Active same-category complaints within 500 meters are treated as potential duplicates.
+5. Active same-category complaints within 100 meters are treated as potential duplicates.
 6. The reporter receives points, and priority/deadline information is updated.
 
 ### Status and resolution
