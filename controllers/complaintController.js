@@ -46,7 +46,7 @@ const suggestCategory = (description = "", filename = "") => {
 };
 
 // =============================================
-// Duplicate Detection (within 500m radius, same category)
+// Duplicate Detection (within 100m radius, same category)
 // =============================================
 const detectDuplicate = async (coordinates, category, excludeId = null) => {
   const query = {
