@@ -53,7 +53,7 @@ const detectDuplicate = async (coordinates, category, excludeId = null) => {
     location: {
       $nearSphere: {
         $geometry: { type: "Point", coordinates },
-        $maxDistance: 500, // 500 meters
+        $maxDistance: 100, // 100 meters
       },
     },
     category,
