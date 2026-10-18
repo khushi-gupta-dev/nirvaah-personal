@@ -1,6 +1,7 @@
 <%- include('partials/head') %>
 <%- include('partials/navbar', {navPage}) %>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.3.0/dist/maplibre-gl.css">
 <link rel="stylesheet" href="/css/detail-page.css">
 
 <div class="page-wrapper">
@@ -16,8 +17,11 @@
 </div>
 
 <%- include('partials/scripts') %>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
+<script type="importmap">{"imports":{"leaflet":"https://unpkg.com/leaflet@1.9.4/dist/leaflet-src.esm.js","maplibre-gl":"https://unpkg.com/maplibre-gl@6.3.0/dist/maplibre-gl.mjs"}}</script>
+<script type="module">
+import * as L from 'leaflet';
+import { maplibreGL } from 'https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.1.4/dist/leaflet-maplibre-gl.mjs';
+
 if (!window.NIRVAAH?.Auth.isLoggedIn()) {
   window.location.href = '/login';
 } else if (window.NIRVAAH.Auth.isAdmin()) {
@@ -41,6 +45,9 @@ function fmtDate(d) {
 }
 
 function catLabel(c) { return (c||'').replace(/_/g, ' '); }
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[ch]);
+}
 
 async function load() {
   try {
@@ -126,7 +133,7 @@ async function load() {
           ${c.adminNote ? `
           <div class="detail-admin-note">
             <div class="detail-admin-note-label"><%= __('adminNoteTitle') %></div>
-            <div class="detail-admin-note-text">${c.adminNote}</div>
+            <div class="detail-admin-note-text">${escapeHtml(c.adminNote)}</div>
           </div>
           ` : ''}
 
@@ -180,7 +187,7 @@ async function load() {
     if (c.location?.coordinates) {
       const [lng, lat] = c.location.coordinates;
       const dm = L.map('detailMap', { scrollWheelZoom: false }).setView([lat,lng], 15);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OSM' }).addTo(dm);
+      maplibreGL({ style: 'https://tiles.openfreemap.org/styles/liberty' }).addTo(dm); requestAnimationFrame(() => dm.invalidateSize());
       L.marker([lat,lng], {
         icon: L.divIcon({ className:'', html:`<div style="width:14px;height:14px;border-radius:50%;background:${sColor};border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.4)"></div>`, iconSize:[14,14], iconAnchor:[7,7] })
       }).addTo(dm).bindPopup(c.title).openPopup();
@@ -213,5 +220,6 @@ async function toggleVote() {
 }
 
 load();
+Object.assign(window, { switchImg, toggleVote });
 </script>
 </body></html>

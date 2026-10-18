@@ -2,6 +2,7 @@
 <%- include('../partials/admin-navbar') %>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.3.0/dist/maplibre-gl.css">
 <style>
 /* ── TRS Panel Styles ─────────────────────────────────── */
 .trs-panel{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:1.5rem;margin-top:1.5rem}
@@ -21,6 +22,7 @@
 .gps-medium{background:rgba(245,158,11,.85);color:#fff}
 .gps-low{background:rgba(239,68,68,.85);color:#fff}
 .gps-acquiring{background:rgba(99,102,241,.85);color:#fff}
+.gps-guidance{font-size:.8rem;line-height:1.45;margin:-.25rem 0 .75rem;color:var(--text-muted)}
 #captureBtn{width:100%;padding:.9rem;border-radius:8px;font-weight:700;font-size:.95rem;margin-bottom:.75rem;background:var(--gradient-primary);color:#fff;border:none;cursor:pointer;transition:opacity .2s}
 #captureBtn:disabled{opacity:.45;cursor:not-allowed}
 #retakeBtn{display:none;width:100%;padding:.75rem;border-radius:8px;font-weight:600;font-size:.9rem;margin-bottom:.75rem;background:transparent;border:1px solid var(--border);color:var(--text);cursor:pointer}
@@ -71,8 +73,11 @@
 </div>
 
 <%- include('../partials/scripts') %>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
+<script type="importmap">{"imports":{"leaflet":"https://unpkg.com/leaflet@1.9.4/dist/leaflet-src.esm.js","maplibre-gl":"https://unpkg.com/maplibre-gl@6.3.0/dist/maplibre-gl.mjs"}}</script>
+<script type="module">
+import * as L from 'leaflet';
+import { maplibreGL } from 'https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.1.4/dist/leaflet-maplibre-gl.mjs';
+
 if (!window.NIRVAAH?.Auth.isLoggedIn() || !window.NIRVAAH.Auth.isAdmin()) {
   window.location.href = '/login';
 }
@@ -85,6 +90,8 @@ const sColors = {pending:'#ef4444',in_progress:'#f59e0b',resolved:'#10b981'};
 const sLabel  = {pending:'⏳ Pending',in_progress:'🔧 In Progress',resolved:'✅ Resolved'};
 const cIcons  = {pothole:'🕳️',garbage:'🗑️',water_leakage:'💧',electricity:'⚡',road_damage:'🛣️',street_light:'💡',sewage:'🌊',tree_hazard:'🌳',graffiti:'🎨',other:'📍'};
 const pLabel  = {high:'High Priority',medium:'Medium Priority',low:'Low Priority'};
+const GPS_ACCURACY_LIMIT_M = <%= gpsAccuracyLimit %>;
+const GPS_DISTANCE_LIMIT_M = <%= gpsDistanceLimit %>;
 
 // ── GPS state ────────────────────────────────────────────────────────────────
 let gpsWatch = null;
@@ -128,7 +135,7 @@ async function load() {
     if (c.location?.coordinates) {
       const [lng2, lat2] = c.location.coordinates;
       const m = L.map('detailMap').setView([lat2, lng2], 15);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(m);
+      maplibreGL({ style: 'https://tiles.openfreemap.org/styles/liberty' }).addTo(m); requestAnimationFrame(() => m.invalidateSize());
       L.marker([lat2, lng2], {
         icon: L.divIcon({
           className: '',
@@ -352,6 +359,7 @@ function initTRS(c) {
         </div>
 
         <div id="distanceRow" class="dist-row" style="display:none"></div>
+        <div id="gpsGuidance" class="gps-guidance" role="status" aria-live="polite"></div>
 
         <button id="captureBtn" disabled onclick="capturePhoto()">📷 Capture Resolution Photo</button>
         <button id="retakeBtn" onclick="retake()">↩ Retake Photo</button>
@@ -389,6 +397,8 @@ function startGPSWatch() {
   if (!navigator.geolocation) {
     document.getElementById('gpsBadge').className = 'gps-badge gps-low';
     document.getElementById('gpsBadge').textContent = '❌ GPS unavailable';
+    document.getElementById('captureBtn').disabled = true;
+    document.getElementById('gpsGuidance').textContent = 'This device does not provide GPS location, so resolution evidence cannot be captured.';
     return;
   }
   gpsWatch = navigator.geolocation.watchPosition(
@@ -400,6 +410,8 @@ function startGPSWatch() {
     err => {
       document.getElementById('gpsBadge').className = 'gps-badge gps-low';
       document.getElementById('gpsBadge').textContent = '❌ Location denied';
+      document.getElementById('captureBtn').disabled = true;
+      document.getElementById('gpsGuidance').textContent = 'Allow location access in your browser settings, then reload this page.';
       showToast('Location Required', 'Enable GPS location to submit resolution evidence.', 'error');
     },
     { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
@@ -417,19 +429,34 @@ function updateGPSUI(origin) {
   else if (acc <= 50) { badge.className = 'gps-badge gps-medium'; badge.textContent = `🟡 GPS ±${acc}m`; }
   else { badge.className = 'gps-badge gps-low'; badge.textContent = `🔴 GPS ±${acc}m (weak)`; }
 
-  // Enable capture only if accuracy < 100m
-  captureBtn.disabled = acc > 100;
+  // Match the server accuracy limit and explain why capture may be locked.
+  const hasAccurateFix = acc <= GPS_ACCURACY_LIMIT_M;
+  captureBtn.disabled = !hasAccurateFix;
+  const gpsGuidance = document.getElementById('gpsGuidance');
+  if (acc <= GPS_DISTANCE_LIMIT_M) {
+    gpsGuidance.textContent = 'GPS accuracy is good enough to verify the site distance. You can capture the resolution photo.';
+  } else if (hasAccurateFix) {
+    gpsGuidance.textContent = `GPS accuracy is weak (±${acc}m), but capture is allowed up to ${GPS_ACCURACY_LIMIT_M}m. This accuracy will be saved with the evidence.`;
+  } else {
+    gpsGuidance.textContent = `GPS accuracy is ±${acc}m; capture unlocks at ${GPS_ACCURACY_LIMIT_M}m or better. Keep this page open and wait for a stronger signal, preferably outdoors.`;
+  }
 
-  // Distance preview
+  // Include GPS uncertainty when deciding whether the site distance is verified.
   if (origin && distRow) {
     const dist = haversine(origin[0], origin[1], currentGPS.lat, currentGPS.lng);
+    const minPossibleDistance = Math.max(0, dist - acc);
+    const maxPossibleDistance = dist + acc;
     distRow.style.display = 'flex';
-    if (dist <= 100) {
-      distRow.innerHTML = `<span class="distance-ok">✅ ${dist}m from complaint site — within threshold</span>`;
-    } else if (dist <= 500) {
-      distRow.innerHTML = `<span class="distance-warn">⚠️ ${dist}m from complaint site — will be flagged suspicious</span>`;
+    if (maxPossibleDistance <= GPS_DISTANCE_LIMIT_M) {
+      distRow.innerHTML = `<span class="distance-ok">Estimated ${dist}m from complaint site; the ±${acc}m GPS range is within the ${GPS_DISTANCE_LIMIT_M}m threshold.</span>`;
+    } else if (minPossibleDistance <= GPS_DISTANCE_LIMIT_M && hasAccurateFix) {
+      distRow.innerHTML = `<span class="distance-warn">Estimated ${dist}m away (±${acc}m). Capture is allowed, but GPS uncertainty crosses the ${GPS_DISTANCE_LIMIT_M}m site threshold; accuracy will be recorded.</span>`;
+    } else if (minPossibleDistance <= GPS_DISTANCE_LIMIT_M) {
+      distRow.innerHTML = `<span class="distance-warn">Estimated ${dist}m away (±${acc}m); improve GPS accuracy below ${GPS_ACCURACY_LIMIT_M}m to capture evidence.</span>`;
+    } else if (dist > GPS_DISTANCE_LIMIT_M && dist <= 500) {
+      distRow.innerHTML = `<span class="distance-warn">At least ${minPossibleDistance}m from complaint site; resolution may be flagged suspicious.</span>`;
     } else {
-      distRow.innerHTML = `<span class="distance-danger">🔴 ${dist}m from complaint site — are you at the right location?</span>`;
+      distRow.innerHTML = `<span class="distance-danger">At least ${minPossibleDistance}m from complaint site; check that you are at the right location.</span>`;
     }
   }
 }
@@ -538,7 +565,24 @@ async function updStat(cid, s, el) {
 }
 
 async function saveAdminNote(cid) {
-  showToast('Saved', 'Admin note feature placeholder', 'success');
+  const input = document.getElementById('adminNoteInput');
+  const note = input?.value ?? '';
+  try {
+    const resp = await fetch(`/api/admin/complaints/${cid}/note`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${window.NIRVAAH.getToken()}`
+      },
+      body: JSON.stringify({ note })
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.message || 'Failed to save admin note');
+    if (input) input.value = data.adminNote;
+    showToast('Saved', 'Admin note saved successfully', 'success');
+  } catch (e) {
+    showToast('Error', e.message, 'error');
+  }
 }
 
 async function deleteComplaint(cid) {
@@ -594,5 +638,6 @@ async function loadCitizenFeedback() {
 }
 
 load();
+Object.assign(window, { requestPermissions, capturePhoto, retake, submitResolution, doReview, updStat, saveAdminNote, deleteComplaint });
 </script>
 </body></html>

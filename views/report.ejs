@@ -2,6 +2,7 @@
 <link rel="stylesheet" href="/css/report-govt.css">
 <%- include('partials/navbar', {navPage}) %>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.3.0/dist/maplibre-gl.css">
 
 <div class="page-wrapper report-page">
   <div class="container report-container">
@@ -195,8 +196,18 @@
 </div>
 
 <%- include('partials/scripts') %>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
+<script type="importmap">
+{
+  "imports": {
+    "leaflet": "https://unpkg.com/leaflet@1.9.4/dist/leaflet-src.esm.js",
+    "maplibre-gl": "https://unpkg.com/maplibre-gl@6.3.0/dist/maplibre-gl.mjs"
+  }
+}
+</script>
+<script type="module">
+import * as L from 'leaflet';
+import { maplibreGL } from 'https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.1.4/dist/leaflet-maplibre-gl.mjs';
+
 if (!window.NIRVAAH?.Auth.isLoggedIn()) {
   window.location.href = '/login';
 } else if (window.NIRVAAH.Auth.isAdmin()) {
@@ -279,7 +290,8 @@ function goStep(n) {
 function initMap() {
   if (map) return;
   map = L.map('map').setView([20.5937, 78.9629], 5);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+  maplibreGL({ style: 'https://tiles.openfreemap.org/styles/liberty' }).addTo(map);
+  requestAnimationFrame(() => map.invalidateSize());
   map.on('click', e => setLocation(e.latlng.lat, e.latlng.lng));
 }
 
@@ -357,5 +369,9 @@ document.getElementById('reportForm').addEventListener('submit', async e => {
     btn.disabled=false; btn.innerHTML=originalBtnHtml;
   }
 });
+
+// The form uses inline handlers, so expose these module functions to the page.
+Object.assign(window, { handleImages, acceptAI, selectCat, goStep, autoLocation, saveOffline });
+Object.defineProperty(window, 'files', { configurable: true, get: () => files, set: value => { files = value; } });
 </script>
 </body></html>

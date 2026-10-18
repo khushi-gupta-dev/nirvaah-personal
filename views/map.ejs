@@ -1,6 +1,7 @@
 <%- include('partials/head') %>
   <%- include('partials/navbar', {navPage}) %>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.3.0/dist/maplibre-gl.css">
 
     <div class="page-wrapper">
       <div class="container" style="padding-top:2rem;padding-bottom:3rem">
@@ -96,8 +97,10 @@
     </div>
 
     <%- include('partials/scripts') %>
-      <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-      <script>
+      <script type="importmap">{"imports":{"leaflet":"https://unpkg.com/leaflet@1.9.4/dist/leaflet-src.esm.js","maplibre-gl":"https://unpkg.com/maplibre-gl@6.3.0/dist/maplibre-gl.mjs"}}</script>
+      <script type="module">
+        import * as L from 'leaflet';
+        import { maplibreGL } from 'https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.1.4/dist/leaflet-maplibre-gl.mjs';
         const statusColors = { pending: 'var(--pending)', in_progress: 'var(--in-progress)', resolved: 'var(--resolved)' };
         const statusColorHex = { pending: '#a12a2a', in_progress: '#9a6700', resolved: '#2f6b3b' };
         const statusLabels = {
@@ -110,10 +113,7 @@
 
         function initMap() {
           map = L.map('map').setView([20.5937, 78.9629], 5);
-          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-            maxZoom: 19
-          }).addTo(map);
+          maplibreGL({ style: 'https://tiles.openfreemap.org/styles/liberty' }).addTo(map); requestAnimationFrame(() => map.invalidateSize());
         }
 
         function clearMarkers() { markers.forEach(m => map.removeLayer(m)); markers = []; }
@@ -165,7 +165,8 @@
 
         initMap();
         loadMap();
-      </script>
+      window.applyFilter = applyFilter;
+</script>
       </body>
 
       </html>

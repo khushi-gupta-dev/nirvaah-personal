@@ -124,6 +124,32 @@ exports.updateComplaintStatus = async (req, res, next) => {
   }
 };
 
+// @route   PATCH /api/admin/complaints/:id/note
+// @access  Admin only
+exports.updateComplaintAdminNote = async (req, res, next) => {
+  try {
+    const { note } = req.body;
+    if (typeof note !== "string") {
+      return res.status(400).json({ success: false, message: "Note must be text" });
+    }
+    if (note.length > 2000) {
+      return res.status(400).json({ success: false, message: "Note cannot exceed 2000 characters" });
+    }
+
+    const complaint = await Complaint.findById(req.params.id);
+    if (!complaint) {
+      return res.status(404).json({ success: false, message: "Complaint not found" });
+    }
+
+    complaint.adminNote = note.trim();
+    await complaint.save();
+
+    res.json({ success: true, message: "Admin note saved", adminNote: complaint.adminNote });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @route   GET /api/admin/analytics
 // @access  Admin only
 exports.getAnalytics = async (req, res, next) => {

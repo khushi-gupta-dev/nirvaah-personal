@@ -118,7 +118,7 @@ SMTP_SECURE=false
 
 # Transparent Resolution System tuning
 TRS_DISTANCE_THRESHOLD_M=100
-TRS_GPS_ACCURACY_MAX_M=100
+TRS_GPS_ACCURACY_MAX_M=150
 ```
 
 If `SMTP_USER` or `SMTP_PASS` is missing, OTP login runs in demo mode and prints the OTP to the server console.

@@ -12,6 +12,7 @@
 
     <!-- Leaflet Map -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.3.0/dist/maplibre-gl.css">
 
     <!-- PWA -->
     <link rel="manifest" href="/pwa/manifest.json">
@@ -618,10 +619,12 @@
 </div>
 
 <!-- Scripts -->
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script type="importmap">{"imports":{"leaflet":"https://unpkg.com/leaflet@1.9.4/dist/leaflet-src.esm.js","maplibre-gl":"https://unpkg.com/maplibre-gl@6.3.0/dist/maplibre-gl.mjs"}}</script>
 <script src="/js/indexeddb.js"></script>
+<script type="module">
+import * as L from 'leaflet';
+import { maplibreGL } from 'https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.1.4/dist/leaflet-maplibre-gl.mjs';
 
-<script>
 // Mock auth so offline interface allows queueing
 window.NIRVAAH = { Auth: { isLoggedIn: () => true }, getUser: () => ({ name: 'Offline Citizen', id: '0' }) };
 
@@ -667,7 +670,7 @@ function goStep(n) {
   if (n === 3 && !map) {
       setTimeout(() => {
         map = L.map('map').setView([20.5937, 78.9629], 5);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        maplibreGL({ style: 'https://tiles.openfreemap.org/styles/liberty' }).addTo(map); requestAnimationFrame(() => map.invalidateSize());
         map.on('click', e => setLocation(e.latlng.lat, e.latlng.lng));
       }, 200);
   }
@@ -725,6 +728,8 @@ async function saveOffline() {
       showToast('Error', e.message, 'error');
   }
 }
+Object.assign(window, { showToast, selectCat, handleImages, goStep, setLocation, autoLocation, saveOffline });
+Object.defineProperty(window, 'files', { configurable: true, get: () => files, set: value => { files = value; } });
 </script>
 
 </body>

@@ -3,6 +3,7 @@
 <%- include('../partials/admin-navbar') %>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.3.0/dist/maplibre-gl.css">
 
 <div style="display:flex;min-height:100vh;padding-top:72px">
   <%- include('../partials/admin-sidebar', {navPage}) %>
@@ -40,8 +41,11 @@
 </div>
 
 <%- include('../partials/scripts') %>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
+<script type="importmap">{"imports":{"leaflet":"https://unpkg.com/leaflet@1.9.4/dist/leaflet-src.esm.js","maplibre-gl":"https://unpkg.com/maplibre-gl@6.3.0/dist/maplibre-gl.mjs"}}</script>
+<script type="module">
+import * as L from 'leaflet';
+import { maplibreGL } from 'https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.1.4/dist/leaflet-maplibre-gl.mjs';
+
 if (!window.NIRVAAH?.Auth.isLoggedIn() || !window.NIRVAAH.Auth.isAdmin()) {
   window.location.href = '/login';
 }
@@ -54,7 +58,7 @@ let map, all = [], markers = [];
 
 function initMap() {
   map = L.map('map').setView([20.5937, 78.9629], 5);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+  maplibreGL({ style: 'https://tiles.openfreemap.org/styles/liberty' }).addTo(map); requestAnimationFrame(() => map.invalidateSize());
 }
 
 function clearMarkers() { markers.forEach(m => map.removeLayer(m)); markers = []; }
@@ -96,5 +100,6 @@ async function loadMap() {
 
 initMap();
 loadMap();
+window.applyFilter = applyFilter;
 </script>
 </body></html>

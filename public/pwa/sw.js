@@ -49,6 +49,7 @@ input:focus,textarea:focus,select:focus{border-color:#6366f1}
 @media(max-width:500px){.row{grid-template-columns:1fr}}
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.3.0/dist/maplibre-gl.css">
 </head>
 <body>
 <div class="toast-wrap" id="tc"></div>
@@ -131,8 +132,11 @@ input:focus,textarea:focus,select:focus{border-color:#6366f1}
   </div>
 </div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
+<script type="importmap">{"imports":{"leaflet":"https://unpkg.com/leaflet@1.9.4/dist/leaflet-src.esm.js","maplibre-gl":"https://unpkg.com/maplibre-gl@6.3.0/dist/maplibre-gl.mjs"}}</script>
+<script type="module">
+import * as L from 'leaflet';
+import { maplibreGL } from 'https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.1.4/dist/leaflet-maplibre-gl.mjs';
+
 let cat='', files=[], map, marker, step=1;
 
 function toast(t,m,type='success'){
@@ -170,7 +174,7 @@ function go(n){
 
 function initMap(){
   map=L.map('map',{zoomControl:true}).setView([20.59,78.96],5);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OSM'}).addTo(map);
+  maplibreGL({ style: 'https://tiles.openfreemap.org/styles/liberty' }).addTo(map); requestAnimationFrame(() => map.invalidateSize());
   map.on('click',e=>place(e.latlng.lat,e.latlng.lng));
 }
 
@@ -241,6 +245,8 @@ async function save(){
     },2000);
   }catch(e){toast('Error',e.message,'error');}
 }
+Object.assign(window, { toast, pick, handleFiles, go, gps, save });
+Object.defineProperty(window, 'files', { configurable: true, get: () => files, set: value => { files = value; } });
 </script>
 </body>
 </html>`;

@@ -100,6 +100,8 @@ router.get("/admin/complaint", (req, res) =>
   res.render("admin/complaint", {
     title: "Complaint Detail – NIRVAAH",
     navPage: "admin-complaints",
+    gpsAccuracyLimit: parseInt(process.env.TRS_GPS_ACCURACY_MAX_M, 10) || 150,
+    gpsDistanceLimit: parseInt(process.env.TRS_DISTANCE_THRESHOLD_M, 10) || 100,
   }),
 );
 router.get("/admin/analytics", (req, res) =>

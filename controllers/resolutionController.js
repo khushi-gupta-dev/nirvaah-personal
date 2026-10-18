@@ -24,7 +24,7 @@ const { createNotification } = require("./notificationController");
 
 // ─── Thresholds (tunable via env) ───────────────────────────────────────────
 const SUSPICIOUS_DISTANCE_M = parseInt(process.env.TRS_DISTANCE_THRESHOLD_M) || 100;
-const MAX_GPS_ACCURACY_M = parseInt(process.env.TRS_GPS_ACCURACY_MAX_M) || 100;
+const MAX_GPS_ACCURACY_M = parseInt(process.env.TRS_GPS_ACCURACY_MAX_M) || 150;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function sha256(buffer) {

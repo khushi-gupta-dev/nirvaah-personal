@@ -25,7 +25,8 @@ const seed = async () => {
     name: 'NIRVAAH Admin',
     email: 'admin@nirvaah.com',
     password: 'admin123',
-    isActive: true
+    isActive: true,
+    wardNo:10
   });
   console.log('✅ Admin created:', admin.email);
 
