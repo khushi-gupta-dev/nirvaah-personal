@@ -335,7 +335,7 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(data.title || 'NIRVAAH', {
       body: data.message || 'New notification',
-      icon: '/assets/icons/icon-192.png',
+      icon: '/assets/icons/icon-192.svg',
       data: { url: data.url || '/' }
     })
   );

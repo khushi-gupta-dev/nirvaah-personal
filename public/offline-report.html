@@ -590,6 +590,7 @@
           <div class="map-wrapper">
             <div id="map" style="height:250px; z-index:1;"></div>
           </div>
+          <div id="mapStatus" class="form-hint" aria-live="polite">The map needs an internet connection. GPS location can still be saved offline.</div>
           <div id="locErr" class="form-error hidden mt-2">Please select a location on the map.</div>
         </div>
 
@@ -622,9 +623,6 @@
 <script type="importmap">{"imports":{"leaflet":"https://unpkg.com/leaflet@1.9.4/dist/leaflet-src.esm.js","maplibre-gl":"https://unpkg.com/maplibre-gl@6.3.0/dist/maplibre-gl.mjs"}}</script>
 <script src="/js/indexeddb.js"></script>
 <script type="module">
-import * as L from 'leaflet';
-import { maplibreGL } from 'https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.1.4/dist/leaflet-maplibre-gl.mjs';
-
 // Mock auth so offline interface allows queueing
 window.NIRVAAH = { Auth: { isLoggedIn: () => true }, getUser: () => ({ name: 'Offline Citizen', id: '0' }) };
 
@@ -639,7 +637,34 @@ function showToast(title, msg, type = 'info') {
 }
 
 // Map Logic
-let step = 1, selCat = '', files = [], map, marker;
+let step = 1, selCat = '', files = [], map, marker, selectedLocation, mapInitPromise;
+let L, maplibreGL;
+
+async function initializeMap() {
+  const status = document.getElementById('mapStatus');
+  if (!navigator.onLine) return;
+
+  try {
+    const [leafletModule, maplibreModule] = await Promise.all([
+      import('leaflet'),
+      import('https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.1.4/dist/leaflet-maplibre-gl.mjs')
+    ]);
+    L = leafletModule;
+    maplibreGL = maplibreModule.maplibreGL;
+    map = L.map('map').setView(selectedLocation || [20.5937, 78.9629], selectedLocation ? 16 : 5);
+    maplibreGL({ style: 'https://tiles.openfreemap.org/styles/liberty' }).addTo(map);
+    map.on('click', e => setLocation(e.latlng.lat, e.latlng.lng));
+    if (selectedLocation) setLocation(...selectedLocation);
+    status.textContent = 'Tap the map to choose a location or use GPS.';
+    requestAnimationFrame(() => map.invalidateSize());
+  } catch (error) {
+    status.textContent = 'Map unavailable. Use GPS to add coordinates; your report can still be saved offline.';
+  }
+}
+
+window.addEventListener('online', () => {
+  if (step === 3 && !map) mapInitPromise = initializeMap();
+});
 
 function selectCat(cat) {
   selCat = cat; document.getElementById('category').value = cat;
@@ -667,27 +692,25 @@ function goStep(n) {
   document.getElementById('step3').classList.add('hidden');
   document.getElementById(`step${n}`).classList.remove('hidden');
   step = n;
-  if (n === 3 && !map) {
-      setTimeout(() => {
-        map = L.map('map').setView([20.5937, 78.9629], 5);
-        maplibreGL({ style: 'https://tiles.openfreemap.org/styles/liberty' }).addTo(map); requestAnimationFrame(() => map.invalidateSize());
-        map.on('click', e => setLocation(e.latlng.lat, e.latlng.lng));
-      }, 200);
-  }
+  if (n === 3 && !mapInitPromise) mapInitPromise = initializeMap();
 }
 
 function setLocation(lat, lng) {
+  selectedLocation = [lat, lng];
   document.getElementById('lat').value = lat; document.getElementById('lng').value = lng;
   document.getElementById('locErr').classList.add('hidden');
-  if (!marker) marker = L.marker([lat, lng]).addTo(map);
-  else marker.setLatLng([lat, lng]);
-  map.setView([lat, lng], 16);
+  if (map && L) {
+    if (!marker) marker = L.marker([lat, lng]).addTo(map);
+    else marker.setLatLng([lat, lng]);
+    map.setView([lat, lng], 16);
+  }
+  document.getElementById('mapStatus').textContent = `Location selected: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
 }
 
 function autoLocation() {
   navigator.geolocation.getCurrentPosition(
     p => setLocation(p.coords.latitude, p.coords.longitude),
-    () => alert('Could not get GPS location. Tap on the map offline.')
+    () => { document.getElementById('mapStatus').textContent = 'Could not get GPS location. Allow location access or try again.'; }
   );
 }
 
