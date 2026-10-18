@@ -15,6 +15,14 @@ const cookieParser = require("cookie-parser");
 const compression = require("compression");
 require("dotenv").config();
 
+const missingStartupConfig = ["MONGO_URI", "JWT_SECRET"].filter(
+    (key) => !process.env[key],
+);
+if (missingStartupConfig.length) {
+    throw new Error(`Missing required environment variables: ${missingStartupConfig.join(", ")}`);
+}
+const mongoose = require("mongoose");
+
 // Route files
 const authRoutes = require("./routes/auth");
 const complaintRoutes = require("./routes/complaints");
@@ -89,11 +97,9 @@ app.use(passport.initialize());
 // DATABASE
 // ====================
 const connectDB = require("./config/db");
-connectDB();
 
 // Independent priority-module scheduler (non-breaking)
 const adminPriorityModuleScheduler = require("./services/adminPriorityModuleScheduler");
-adminPriorityModuleScheduler.start();
 
 // ====================
 // API ROUTES
@@ -107,9 +113,10 @@ app.use("/api/users", userRoutes);
 app.use("/api/chatbot", require("./routes/chatbot"));
 
 app.get("/api/health", (req, res) => {
-    res.json({
-        status: "OK",
-        message: "NIRVAAH API is running",
+    const databaseReady = mongoose.connection.readyState === 1;
+    res.status(databaseReady ? 200 : 503).json({
+        status: databaseReady ? "OK" : "NOT_READY",
+        message: databaseReady ? "NIRVAAH API is ready" : "Database is not connected",
         timestamp: new Date(),
     });
 });
@@ -129,9 +136,19 @@ app.use(errorHandler);
 // START
 // ====================
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
-    console.log(`\n🚀 NIRVAAH running → http://localhost:${PORT}`);
-    console.log(`📡 Mode: ${process.env.NODE_ENV || "development"}\n`);
+const startServer = async () => {
+    await connectDB();
+    adminPriorityModuleScheduler.start();
+
+    server.listen(PORT, () => {
+        console.log(`NIRVAAH listening on port ${PORT}`);
+        console.log(`Mode: ${process.env.NODE_ENV || "development"}`);
+    });
+};
+
+startServer().catch((error) => {
+    console.error("Server startup failed:", error.message);
+    process.exit(1);
 });
 
 process.on("unhandledRejection", (err) => {

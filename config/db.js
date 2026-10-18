@@ -1,28 +1,20 @@
-/**
- * MongoDB Database Connection
- * Uses Mongoose with retry logic for robustness
- */
+/** MongoDB connection. Startup failures are handled by the server entry point. */
 const mongoose = require("mongoose");
 
 const connectDB = async () => {
-  try {
-    const conn = await mongoose.connect(process.env.MONGO_URI);
+  const conn = await mongoose.connect(process.env.MONGO_URI);
 
-    console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
+  console.log(`MongoDB connected: ${conn.connection.host}`);
 
-    // Handle connection events
-    mongoose.connection.on("error", (err) => {
-      console.error("MongoDB connection error:", err);
-    });
+  mongoose.connection.on("error", (err) => {
+    console.error("MongoDB connection error:", err.message);
+  });
 
-    mongoose.connection.on("disconnected", () => {
-      console.warn("MongoDB disconnected. Attempting to reconnect...");
-    });
-  } catch (error) {
-    console.error("❌ MongoDB Connection Failed:", error.message);
-    // Retry after 5 seconds
-    setTimeout(connectDB, 5000);
-  }
+  mongoose.connection.on("disconnected", () => {
+    console.warn("MongoDB connection lost.");
+  });
+
+  return conn;
 };
 
 module.exports = connectDB;
