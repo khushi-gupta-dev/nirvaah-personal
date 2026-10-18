@@ -1,11 +1,26 @@
 {
+  "id": "/",
   "name": "NIRVAAH - Smart Civic Reporting",
   "short_name": "NIRVAAH",
-  "description": "Report civic issues like potholes, garbage, water leakage, and more. Track progress and make your city better.",
+  "description": "Report civic issues, share their location, and track resolution.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#0a0e1a",
-  "theme_color": "#6366f1",
+  "background_color": "#F8F1EC",
+  "theme_color": "#7A1C1C",
   "orientation": "portrait-primary",
-  "scope": "/"
+  "icons": [
+    {
+      "src": "/assets/icons/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/icons/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
 }

@@ -175,7 +175,7 @@ const startServer = async () => {
     await connectDB();
     adminPriorityModuleScheduler.start();
 
-    server.listen(PORT, () => {
+    server.listen(PORT, "0.0.0.0", () => {
         console.log(`NIRVAAH listening on port ${PORT}`);
         console.log(`Mode: ${process.env.NODE_ENV || "development"}`);
     });
