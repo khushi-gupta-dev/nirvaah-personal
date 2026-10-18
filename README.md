@@ -99,7 +99,7 @@ CLIENT_URL=http://localhost:3000
 MONGO_URI=mongodb://127.0.0.1:27017/nirvaah
 
 # Authentication
-JWT_SECRET=replace_with_a_long_random_secret
+JWT_SECRET=replace_with_a_32_character_or_longer_random_secret
 JWT_EXPIRE=7d
 ADMIN_SECRET=replace_with_admin_registration_secret
 
@@ -126,6 +126,8 @@ TRS_GPS_ACCURACY_MAX_M=150
 For Gmail, leave `SMTP_HOST` unset. Create a Google App Password after enabling 2-Step Verification, then set `SMTP_USER` and `SMTP_PASS` in your local `.env` and in your deployment provider's environment settings. Do not commit these credentials. If the SMTP credentials are missing or email delivery fails, OTP endpoints return an error; the application does not print OTP codes to the server console.
 
 Set `CLIENT_URL` to the deployed website's origin for production CORS. Multiple origins can be comma-separated. The server-rendered site itself is same-origin and does not require CORS.
+
+At startup, production requires `MONGO_URI`, a `JWT_SECRET` with at least 32 characters, `ADMIN_SECRET`, all three Cloudinary credentials, and `SMTP_USER`/`SMTP_PASS`. The server exits with the missing setting names before listening; configure them in the deployment provider's environment settings.
 
 ## Installation
 

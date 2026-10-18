@@ -15,11 +15,28 @@ const cookieParser = require("cookie-parser");
 const compression = require("compression");
 require("dotenv").config();
 
-const missingStartupConfig = ["MONGO_URI", "JWT_SECRET"].filter(
-    (key) => !process.env[key],
+const isProduction = process.env.NODE_ENV === "production";
+const requiredStartupConfig = ["MONGO_URI", "JWT_SECRET"];
+if (isProduction) {
+    requiredStartupConfig.push(
+        "ADMIN_SECRET",
+        "CLOUDINARY_CLOUD_NAME",
+        "CLOUDINARY_API_KEY",
+        "CLOUDINARY_API_SECRET",
+        "SMTP_USER",
+        "SMTP_PASS",
+    );
+}
+
+const missingStartupConfig = requiredStartupConfig.filter(
+    (key) => !process.env[key]?.trim(),
 );
+const jwtSecret = process.env.JWT_SECRET?.trim();
+if (isProduction && jwtSecret && jwtSecret.length < 32) {
+    missingStartupConfig.push("JWT_SECRET (at least 32 characters)");
+}
 if (missingStartupConfig.length) {
-    throw new Error(`Missing required environment variables: ${missingStartupConfig.join(", ")}`);
+    throw new Error(`Missing or invalid required environment variables: ${missingStartupConfig.join(", ")}`);
 }
 const mongoose = require("mongoose");
 
