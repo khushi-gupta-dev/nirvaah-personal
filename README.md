@@ -93,6 +93,7 @@ Create a `.env` file in the repository root.
 # Application
 NODE_ENV=development
 PORT=5000
+CLIENT_URL=http://localhost:3000
 
 # Database
 MONGO_URI=mongodb://127.0.0.1:27017/nirvaah
@@ -123,6 +124,8 @@ TRS_GPS_ACCURACY_MAX_M=150
 ```
 
 For Gmail, leave `SMTP_HOST` unset. Create a Google App Password after enabling 2-Step Verification, then set `SMTP_USER` and `SMTP_PASS` in your local `.env` and in your deployment provider's environment settings. Do not commit these credentials. If the SMTP credentials are missing or email delivery fails, OTP endpoints return an error; the application does not print OTP codes to the server console.
+
+Set `CLIENT_URL` to the deployed website's origin for production CORS. Multiple origins can be comma-separated. The server-rendered site itself is same-origin and does not require CORS.
 
 ## Installation
 

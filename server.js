@@ -23,6 +23,24 @@ if (missingStartupConfig.length) {
 }
 const mongoose = require("mongoose");
 
+const corsOrigins = (process.env.CLIENT_URL || "")
+    .split(",")
+    .map((value) => {
+        try {
+            return new URL(value.trim()).origin;
+        } catch {
+            return null;
+        }
+    })
+    .filter(Boolean);
+if (process.env.NODE_ENV !== "production") {
+    const localPort = process.env.PORT || 5000;
+    corsOrigins.push(`http://localhost:${localPort}`, `http://127.0.0.1:${localPort}`);
+}
+const corsOrigin = (origin, callback) => {
+    callback(null, !origin || corsOrigins.includes(origin));
+};
+
 // Route files
 const authRoutes = require("./routes/auth");
 const complaintRoutes = require("./routes/complaints");
@@ -41,7 +59,7 @@ const server = http.createServer(app);
 
 // Socket.io
 const io = new Server(server, {
-    cors: { origin: "*", methods: ["GET", "POST"] },
+    cors: { origin: corsOrigin, methods: ["GET", "POST"] },
 });
 global.io = io;
 io.on("connection", (socket) => {
@@ -83,7 +101,7 @@ app.use(express.static(path.join(__dirname, "public")));
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(compression());
 app.use(morgan("dev"));
-app.use(cors({ origin: "*", credentials: true }));
+app.use(cors({ origin: corsOrigin, methods: ["GET", "POST", "PUT", "PATCH", "DELETE"] }));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(cookieParser());
