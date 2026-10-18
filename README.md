@@ -303,5 +303,5 @@ npm run seed   # Seed MongoDB with sample data
 - `helmet` is configured with Content Security Policy disabled to keep the existing EJS/static asset flow working.
 - CORS allows configured `CLIENT_URL` origins; set it to the production website origin.
 - OTP sessions are stored in MongoDB with a TTL index, so they can be verified across restarts and app instances.
-- The priority scheduler is in-process; multi-instance deployments need an external scheduler or distributed locking.
+- Priority scheduler jobs use MongoDB leases to prevent concurrent execution across app instances; task failures are logged.
 - No license file is currently included.
