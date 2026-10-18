@@ -48,7 +48,7 @@ const apiFetch = async (endpoint, options = {}) => {
 
   if (!response.ok) {
     const baseUrl = endpoint.split('?')[0];
-    const isLoginEndpoint = ["/auth/login", "/auth/register", "/auth/send-otp", "/auth/verify-otp", "/auth/resend-otp"].includes(baseUrl);
+    const isLoginEndpoint = ["/auth/login", "/auth/register"].includes(baseUrl);
     if (response.status === 401 && !isLoginEndpoint) {
       removeToken();
       removeUser();
@@ -88,31 +88,6 @@ const Auth = {
     if (data.accountType && data.user) data.user.accountType = data.accountType;
     setUser(data.user);
     return data;
-  },
-
-  async sendOtp(email, password) {
-    return apiFetch("/auth/send-otp", {
-      method: "POST",
-      body: JSON.stringify({ email, password }),
-    });
-  },
-
-  async verifyOtp(sessionId, otp) {
-    const data = await apiFetch("/auth/verify-otp", {
-      method: "POST",
-      body: JSON.stringify({ sessionId, otp }),
-    });
-    setToken(data.token);
-    if (data.accountType && data.user) data.user.accountType = data.accountType;
-    setUser(data.user);
-    return data;
-  },
-
-  async resendOtp(sessionId) {
-    return apiFetch("/auth/resend-otp", {
-      method: "POST",
-      body: JSON.stringify({ sessionId }),
-    });
   },
 
   logout() {

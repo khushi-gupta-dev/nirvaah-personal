@@ -15,9 +15,6 @@ const {
   getMe,
   logout,
   updateProfile,
-  sendOtp,
-  verifyOtp,
-  resendOtp,
 } = require("../controllers/authController");
 const { protect } = require("../middleware/auth");
 
@@ -37,9 +34,6 @@ const loginValidation = [
 
 router.post("/register", registerValidation, register);
 router.post("/login", loginValidation, login);
-router.post("/send-otp", loginValidation, sendOtp);
-router.post("/verify-otp", verifyOtp);
-router.post("/resend-otp", resendOtp);
 router.get("/me", protect, getMe);
 router.post("/logout", protect, logout);
 router.put("/profile", protect, updateProfile);

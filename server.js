@@ -23,8 +23,6 @@ if (isProduction) {
         "CLOUDINARY_CLOUD_NAME",
         "CLOUDINARY_API_KEY",
         "CLOUDINARY_API_SECRET",
-        "SMTP_USER",
-        "SMTP_PASS",
     );
 }
 

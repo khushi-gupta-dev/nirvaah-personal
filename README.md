@@ -5,7 +5,7 @@ NIRVAAH is a Node.js/Express civic reporting application for citizens and munici
 ## What is in this codebase
 
 - **Express API and EJS web app** served from a single Node.js process.
-- **MongoDB persistence** through Mongoose models for citizens, admins, complaints, notifications, OTPs, and priority workflows.
+- **MongoDB persistence** through Mongoose models for citizens, admins, complaints, notifications, and priority workflows.
 - **JWT authentication** with Passport JWT guards for protected API routes.
 - **Cloudinary image uploads** for complaint photos and resolution evidence.
 - **Socket.IO notifications** emitted to user-specific rooms when notifications are created.
@@ -17,7 +17,7 @@ NIRVAAH is a Node.js/Express civic reporting application for citizens and munici
 ### Citizen functionality
 
 - Register and log in as a citizen.
-- Log in with email OTP after password verification; OTP sessions are stored in MongoDB and expire after five minutes.
+- Log in with email and password.
 - Create complaints with title, description, category, location, address/landmark, and up to five images.
 - Receive a rule-based category suggestion from complaint text and uploaded image filename.
 - Automatic duplicate detection for active complaints in the same category within 100 meters.
@@ -52,7 +52,6 @@ TRS is implemented on complaint resolution routes. Resolution evidence is admin-
 - **Authentication:** JSON Web Tokens, Passport JWT, bcryptjs
 - **Uploads:** Multer, multer-storage-cloudinary, Cloudinary
 - **Validation and middleware:** express-validator, Helmet, CORS, compression, Morgan, cookie-parser
-- **Email:** Nodemailer
 - **i18n:** i18n with English and Hindi locale files
 - **PWA:** Web app manifest, service workers, offline fallback page, IndexedDB helper
 
@@ -83,7 +82,6 @@ TRS is implemented on complaint resolution routes. Resolution evidence is admin-
 - npm
 - MongoDB database
 - Cloudinary account and API credentials
-- SMTP credentials for OTP email delivery (a Gmail account with an App Password works for low-volume use)
 
 ## Environment Variables
 
@@ -108,26 +106,14 @@ CLOUDINARY_CLOUD_NAME=your_cloud_name
 CLOUDINARY_API_KEY=your_api_key
 CLOUDINARY_API_SECRET=your_api_secret
 
-# OTP email delivery
-SMTP_USER=your_gmail_address@gmail.com
-SMTP_PASS=your_16_character_google_app_password
-SMTP_FROM=your_gmail_address@gmail.com
-
-# Optional: use these only for a non-Gmail SMTP provider
-SMTP_HOST=smtp.your-provider.example
-SMTP_PORT=587
-SMTP_SECURE=false
-
 # Transparent Resolution System tuning
 TRS_DISTANCE_THRESHOLD_M=100
 TRS_GPS_ACCURACY_MAX_M=150
 ```
 
-For Gmail, leave `SMTP_HOST` unset. Create a Google App Password after enabling 2-Step Verification, then set `SMTP_USER` and `SMTP_PASS` in your local `.env` and in your deployment provider's environment settings. Do not commit these credentials. If the SMTP credentials are missing or email delivery fails, OTP endpoints return an error; the application does not print OTP codes to the server console.
-
 Set `CLIENT_URL` to the deployed website's origin for production CORS. Multiple origins can be comma-separated. The server-rendered site itself is same-origin and does not require CORS.
 
-At startup, production requires `MONGO_URI`, a `JWT_SECRET` with at least 32 characters, `ADMIN_SECRET`, all three Cloudinary credentials, and `SMTP_USER`/`SMTP_PASS`. The server exits with the missing setting names before listening; configure them in the deployment provider's environment settings.
+At startup, production requires `MONGO_URI`, a `JWT_SECRET` with at least 32 characters, `ADMIN_SECRET`, and all three Cloudinary credentials. The server exits with the missing setting names before listening; configure them in the deployment provider's environment settings.
 
 ## Installation
 
@@ -168,9 +154,6 @@ The seed script connects to MongoDB, clears existing users/admins/complaints, cr
 | --- | --- | --- | --- |
 | `POST` | `/register` | Public | Create citizen account, or admin account with `ADMIN_SECRET` |
 | `POST` | `/login` | Public | Password login for admin or citizen |
-| `POST` | `/send-otp` | Public | Verify password and send/create OTP session |
-| `POST` | `/verify-otp` | Public | Exchange valid OTP session for JWT |
-| `POST` | `/resend-otp` | Public | Generate a fresh OTP for an existing session |
 | `GET` | `/me` | JWT | Return current user/admin profile |
 | `POST` | `/logout` | JWT | Client-side logout confirmation endpoint |
 | `PUT` | `/profile` | JWT | Update profile fields |
@@ -226,7 +209,6 @@ The seed script connects to MongoDB, clears existing users/admins/complaints, cr
 
 - `/`
 - `/login`
-- `/otp`
 - `/register`
 - `/map`
 - `/leaderboard`
@@ -302,6 +284,5 @@ npm run seed   # Seed MongoDB with sample data
 - EJS page routes do not apply server-side page auth; templates and browser scripts are expected to enforce UI behavior while APIs enforce JWT/admin protection.
 - `helmet` is configured with Content Security Policy disabled to keep the existing EJS/static asset flow working.
 - CORS allows configured `CLIENT_URL` origins; set it to the production website origin.
-- OTP sessions are stored in MongoDB with a TTL index, so they can be verified across restarts and app instances.
 - Priority scheduler jobs use MongoDB leases to prevent concurrent execution across app instances; task failures are logged.
 - No license file is currently included.

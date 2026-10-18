@@ -13,9 +13,6 @@ router.get("/", (req, res) =>
 router.get("/login", (req, res) =>
   res.render("login", { title: "Login – NIRVAAH" }),
 );
-router.get("/otp", (req, res) =>
-  res.render("otp", { title: "OTP Verification – NIRVAAH" }),
-);
 router.get("/register", (req, res) =>
   res.render("register", { title: "Register – NIRVAAH" }),
 );

@@ -2,10 +2,8 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
-const mongoose = require("mongoose");
-const Otp = require("../models/Otp");
 const errorHandler = require("../middleware/errorHandler");
-const { sendOtpEmail } = require("../config/mailer");
+const authRoutes = require("../routes/auth");
 
 const projectPath = (...parts) => path.join(__dirname, "..", ...parts);
 
@@ -48,7 +46,6 @@ test("production 500 responses do not reveal internal errors or stacks", () => {
   assert.equal("stack" in response.body, false);
   assert.doesNotMatch(JSON.stringify(response.body), /private details/);
 });
-
 test("production validation errors return a safe client message", () => {
   const error = new Error("Internal schema field validation failed");
   error.name = "ValidationError";
@@ -66,22 +63,21 @@ test("development errors retain their stack for debugging", () => {
   assert.match(response.body.stack, /Development detail/);
 });
 
-test("OTP model stores an HMAC hash and expires sessions with a TTL index", () => {
-  assert.equal(Otp.schema.path("otpHash").options.select, false);
-  assert.equal(Otp.schema.path("sessionId").options.unique, true);
-  const ttlIndex = Otp.schema.indexes().find(([fields]) => fields.expiresAt === 1);
-  assert.ok(ttlIndex);
-  assert.equal(ttlIndex[1].expireAfterSeconds, 0);
+test("auth routes retain password login and no longer expose OTP endpoints", () => {
+  const routes = authRoutes.stack
+    .filter((layer) => layer.route)
+    .map((layer) => layer.route.path);
 
-  const otp = new Otp({
-    sessionId: `otp_${"a".repeat(48)}`,
-    user: new mongoose.Types.ObjectId(),
-    accountType: "admin",
-    accountModel: "Admin",
-    otpHash: "b".repeat(64),
-    expiresAt: new Date(Date.now() + 5 * 60 * 1000),
-  });
-  assert.equal(otp.validateSync(), undefined);
+  assert.ok(routes.includes("/login"));
+  assert.ok(!routes.some((route) => /otp/i.test(route)));
+});
+
+test("citizen and admin login pages submit password login without OTP UI", () => {
+  for (const view of ["views/login.ejs", "views/admin-login.ejs"]) {
+    const contents = fs.readFileSync(projectPath(view), "utf8");
+    assert.match(contents, /Auth\.login\(email, password\)/);
+    assert.doesNotMatch(contents, /OTP|sendOtp|verifyOtp|resendOtp/i);
+  }
 });
 
 test("PWA manifest icons exist and can be cached by the root worker", () => {
@@ -94,23 +90,5 @@ test("PWA manifest icons exist and can be cached by the root worker", () => {
     const relativePath = icon.src.replace(/^\/+/, "").split("/");
     assert.ok(fs.existsSync(projectPath("public", ...relativePath)), `${icon.src} should exist`);
     assert.ok(worker.includes(icon.src), `${icon.src} should be precached`);
-  }
-});
-
-test("OTP email delivery fails closed when SMTP settings are missing", async () => {
-  const smtpKeys = ["SMTP_USER", "SMTP_PASS", "SMTP_HOST"];
-  const previousValues = Object.fromEntries(smtpKeys.map((key) => [key, process.env[key]]));
-  smtpKeys.forEach((key) => delete process.env[key]);
-
-  try {
-    await assert.rejects(
-      sendOtpEmail("citizen@example.com", "1234"),
-      /OTP email is not configured/,
-    );
-  } finally {
-    for (const key of smtpKeys) {
-      if (previousValues[key] === undefined) delete process.env[key];
-      else process.env[key] = previousValues[key];
-    }
   }
 });
