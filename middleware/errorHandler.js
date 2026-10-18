@@ -3,25 +3,29 @@
  * Returns consistent JSON error responses
  */
 const errorHandler = (err, req, res, next) => {
+  if (res.headersSent) return next(err);
+
+  const isProduction = process.env.NODE_ENV === 'production';
   let statusCode = err.statusCode || 500;
   let message = err.message || 'Internal Server Error';
 
   // Mongoose bad ObjectId
   if (err.name === 'CastError') {
-    message = `Resource not found with id: ${err.value}`;
+    message = 'Resource not found';
     statusCode = 404;
   }
 
   // Mongoose duplicate key error
   if (err.code === 11000) {
-    const field = Object.keys(err.keyValue)[0];
-    message = `Duplicate value for field: ${field}. Please use a different value.`;
+    message = 'A record with these details already exists.';
     statusCode = 400;
   }
 
   // Mongoose validation error
   if (err.name === 'ValidationError') {
-    message = Object.values(err.errors).map(e => e.message).join(', ');
+    message = isProduction
+      ? 'Please check the submitted information.'
+      : Object.values(err.errors).map(e => e.message).join(', ');
     statusCode = 400;
   }
 
@@ -36,15 +40,24 @@ const errorHandler = (err, req, res, next) => {
     statusCode = 401;
   }
 
-  // Log error in development
-  if (process.env.NODE_ENV === 'development') {
+  if (isProduction && statusCode >= 500) {
+    console.error('Request failed:', {
+      method: req.method,
+      path: req.originalUrl,
+      error: err,
+    });
+  } else if (!isProduction) {
     console.error('Error:', err);
+  }
+
+  if (isProduction && statusCode >= 500) {
+    message = 'An unexpected error occurred. Please try again later.';
   }
 
   res.status(statusCode).json({
     success: false,
     message,
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+    ...(!isProduction && { stack: err.stack })
   });
 };
 
