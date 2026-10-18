@@ -83,7 +83,7 @@ TRS is implemented on complaint resolution routes. Resolution evidence is admin-
 - npm
 - MongoDB database
 - Cloudinary account and API credentials
-- SMTP credentials if you want OTP emails to be delivered instead of printed in demo mode
+- SMTP credentials for OTP email delivery (a Gmail account with an App Password works for low-volume use)
 
 ## Environment Variables
 
@@ -108,11 +108,12 @@ CLOUDINARY_API_KEY=your_api_key
 CLOUDINARY_API_SECRET=your_api_secret
 
 # OTP email delivery
-SMTP_USER=your_gmail_or_smtp_username
-SMTP_PASS=your_smtp_app_password
+SMTP_USER=your_gmail_address@gmail.com
+SMTP_PASS=your_16_character_google_app_password
+SMTP_FROM=your_gmail_address@gmail.com
 
-# Optional generic SMTP transport used by config/mailer.js
-SMTP_HOST=smtp.example.com
+# Optional: use these only for a non-Gmail SMTP provider
+SMTP_HOST=smtp.your-provider.example
 SMTP_PORT=587
 SMTP_SECURE=false
 
@@ -121,7 +122,7 @@ TRS_DISTANCE_THRESHOLD_M=100
 TRS_GPS_ACCURACY_MAX_M=150
 ```
 
-If `SMTP_USER` or `SMTP_PASS` is missing, OTP login runs in demo mode and prints the OTP to the server console.
+For Gmail, leave `SMTP_HOST` unset. Create a Google App Password after enabling 2-Step Verification, then set `SMTP_USER` and `SMTP_PASS` in your local `.env` and in your deployment provider's environment settings. Do not commit these credentials. If the SMTP credentials are missing or email delivery fails, OTP endpoints return an error; the application does not print OTP codes to the server console.
 
 ## Installation
 

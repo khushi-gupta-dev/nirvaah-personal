@@ -5,38 +5,13 @@
 const User = require("../models/User");
 const Admin = require("../models/Admin");
 const { validationResult } = require("express-validator");
-const nodemailer = require("nodemailer");
+const crypto = require("crypto");
+const { sendOtpEmail } = require("../config/mailer");
 
 // In-memory OTP storage (Map: sessionId -> { otp, userId, expiresAt, attempts })
 const otpStore = new Map();
 
-const generateOTP = () => Math.floor(1000 + Math.random() * 9000).toString(); // 4-digit OTP
-
-const sendEmailOTP = async (email, otp) => {
-  try {
-    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-      console.log(`\n\n---------------------------------`);
-      console.log(`[DEMO MODE] No SMTP credentials.`);
-      console.log(`OTP for ${email} is: ${otp}`);
-      console.log(`---------------------------------\n\n`);
-      return true;
-    }
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
-    });
-    await transporter.sendMail({
-      from: `"Nirvaah" <${process.env.SMTP_USER}>`,
-      to: email,
-      subject: 'Nirvaah - Your Login OTP',
-      text: `Your OTP for Nirvaah login is: ${otp}. It is valid for 5 minutes.`
-    });
-    return true;
-  } catch (error) {
-    console.error('Email sending failed:', error);
-    return false;
-  }
-};
+const generateOTP = () => crypto.randomInt(1000, 10000).toString(); // 4-digit OTP
 
 // Clean up expired OTPs periodically
 setInterval(() => {
@@ -44,7 +19,6 @@ setInterval(() => {
   for (const [sessionId, data] of otpStore.entries()) {
     if (data.expiresAt < now) {
       otpStore.delete(sessionId);
-      console.log(`[OTP] Cleaned up expired OTP for session ${sessionId}`);
     }
   }
 }, 60000); // Clean every minute
@@ -164,18 +138,12 @@ exports.login = async (req, res, next) => {
 // @access  Public
 exports.sendOtp = async (req, res, next) => {
   try {
-    console.log("[OTP] sendOtp endpoint called", {
-      path: req.path,
-      body: req.body,
-    });
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      console.log("[OTP] Validation error", errors.array());
       return res.status(400).json({ success: false, errors: errors.array() });
     }
 
     const { email, password } = req.body;
-    console.log("[OTP] sendOtp request for", email);
 
     let user = await Admin.findOne({ email }).select("+password");
     let accountType = "admin";
@@ -199,25 +167,28 @@ exports.sendOtp = async (req, res, next) => {
 
     // Generate OTP and session
     const code = generateOTP();
-    const sessionId = `otp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const sessionId = `otp_${crypto.randomBytes(24).toString("hex")}`;
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
-    // Store in memory
-    otpStore.set(sessionId, {
+    const otpData = {
       otp: code,
       userId: user._id,
       accountType,
       expiresAt,
       attempts: 0,
-    });
+    };
 
-    // Send email using nodemailer logic if configured
-    await sendEmailOTP(email, code);
+    try {
+      await sendOtpEmail(email, code);
+    } catch (error) {
+      console.error("Sign-in code email could not be delivered:", error.message);
+      return res.status(503).json({
+        success: false,
+        message: "Could not send the verification email. Please try again later.",
+      });
+    }
 
-    // Log OTP to console (for development)
-    console.log(
-      `[OTP] Generated for ${email}: ${code} (Session: ${sessionId}, Expires: ${expiresAt.toISOString()})`,
-    );
+    otpStore.set(sessionId, otpData);
 
     res.status(200).json({ success: true, message: "OTP sent", sessionId });
   } catch (error) {
@@ -229,13 +200,8 @@ exports.sendOtp = async (req, res, next) => {
 // @access  Public
 exports.verifyOtp = async (req, res, next) => {
   try {
-    console.log("[OTP] verifyOtp endpoint called", {
-      path: req.path,
-      body: req.body,
-    });
     const { sessionId, otp } = req.body;
     if (!sessionId || !otp) {
-      console.log("[OTP] verifyOtp missing fields", { sessionId, otp });
       return res
         .status(400)
         .json({ success: false, message: "Session ID and OTP are required" });
@@ -243,7 +209,6 @@ exports.verifyOtp = async (req, res, next) => {
 
     const otpData = otpStore.get(sessionId);
     if (!otpData) {
-      console.log(`[OTP] Invalid session: ${sessionId}`);
       return res
         .status(401)
         .json({ success: false, message: "Invalid or expired session" });
@@ -251,7 +216,6 @@ exports.verifyOtp = async (req, res, next) => {
 
     if (otpData.expiresAt < new Date()) {
       otpStore.delete(sessionId);
-      console.log(`[OTP] Expired OTP for session: ${sessionId}`);
       return res
         .status(410)
         .json({ success: false, message: "OTP expired", expired: true });
@@ -259,7 +223,6 @@ exports.verifyOtp = async (req, res, next) => {
 
     if (otpData.attempts >= 5) {
       otpStore.delete(sessionId);
-      console.log(`[OTP] Too many attempts for session: ${sessionId}`);
       return res.status(403).json({
         success: false,
         message: "Too many OTP attempts. Request a new code.",
@@ -268,15 +231,11 @@ exports.verifyOtp = async (req, res, next) => {
 
     if (otpData.otp !== otp.trim()) {
       otpData.attempts += 1;
-      console.log(
-        `[OTP] Invalid OTP attempt for session: ${sessionId} (attempt ${otpData.attempts})`,
-      );
       return res.status(401).json({ success: false, message: "Invalid OTP" });
     }
 
     // OTP verified successfully
     otpStore.delete(sessionId);
-    console.log(`[OTP] Verified successfully for session: ${sessionId}`);
 
     let user;
     if (otpData.accountType === "admin") {
@@ -314,20 +273,14 @@ exports.resendOtp = async (req, res, next) => {
 
     const otpData = otpStore.get(sessionId);
     if (!otpData) {
-      console.log(`[OTP] Resend failed - invalid session: ${sessionId}`);
       return res
         .status(404)
         .json({ success: false, message: "OTP session not found" });
     }
 
-    // Generate new OTP
+    // Send a replacement code before invalidating the currently stored code.
     const code = generateOTP();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
-
-    // Update in memory
-    otpData.otp = code;
-    otpData.expiresAt = expiresAt;
-    otpData.attempts = 0;
 
     let user;
     if (otpData.accountType === "admin") {
@@ -335,13 +288,24 @@ exports.resendOtp = async (req, res, next) => {
     } else {
       user = await User.findById(otpData.userId);
     }
-    if (user) {
-      await sendEmailOTP(user.email, code);
+    if (!user) {
+      otpStore.delete(sessionId);
+      return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    console.log(
-      `[OTP] Resent for session ${sessionId}: ${code} (Expires: ${expiresAt.toISOString()})`,
-    );
+    try {
+      await sendOtpEmail(user.email, code);
+    } catch (error) {
+      console.error("Replacement sign-in code email could not be delivered:", error.message);
+      return res.status(503).json({
+        success: false,
+        message: "Could not resend the verification email. Please try again later.",
+      });
+    }
+
+    otpData.otp = code;
+    otpData.expiresAt = expiresAt;
+    otpData.attempts = 0;
 
     res.status(200).json({ success: true, message: "OTP resent", sessionId });
   } catch (error) {
@@ -396,6 +360,6 @@ exports.updateProfile = async (req, res, next) => {
 exports.logout = async (req, res) => {
   res.json({
     success: true,
-    message: "Logged out successfully. Please clear your token.",
+    message: "Logged out successfully.",
   });
 };
