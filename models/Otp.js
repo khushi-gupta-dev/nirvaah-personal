@@ -1,35 +1,29 @@
-/**
- * OTP Model for second-factor verification
- */
+/** MongoDB-backed OTP sessions shared by all application instances. */
 const mongoose = require("mongoose");
 
 const otpSchema = new mongoose.Schema(
   {
+    sessionId: { type: String, required: true, unique: true },
     user: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
       required: true,
+      refPath: "accountModel",
     },
-    otp: {
+    accountType: {
       type: String,
+      enum: ["citizen", "admin"],
       required: true,
     },
-    expiresAt: {
-      type: Date,
+    accountModel: {
+      type: String,
+      enum: ["User", "Admin"],
       required: true,
     },
-    used: {
-      type: Boolean,
-      default: false,
-    },
-    attempts: {
-      type: Number,
-      default: 0,
-    },
+    otpHash: { type: String, required: true, select: false },
+    expiresAt: { type: Date, required: true },
+    attempts: { type: Number, default: 0 },
   },
-  {
-    timestamps: true,
-  },
+  { timestamps: true },
 );
 
 otpSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });

@@ -17,7 +17,7 @@ NIRVAAH is a Node.js/Express civic reporting application for citizens and munici
 ### Citizen functionality
 
 - Register and log in as a citizen.
-- Log in with email OTP after password verification; OTPs are stored in memory and expire after five minutes.
+- Log in with email OTP after password verification; OTP sessions are stored in MongoDB and expire after five minutes.
 - Create complaints with title, description, category, location, address/landmark, and up to five images.
 - Receive a rule-based category suggestion from complaint text and uploaded image filename.
 - Automatic duplicate detection for active complaints in the same category within 100 meters.
@@ -299,7 +299,7 @@ npm run seed   # Seed MongoDB with sample data
 
 - EJS page routes do not apply server-side page auth; templates and browser scripts are expected to enforce UI behavior while APIs enforce JWT/admin protection.
 - `helmet` is configured with Content Security Policy disabled to keep the existing EJS/static asset flow working.
-- CORS is currently open to all origins.
-- OTP data is stored in an in-memory `Map`, so OTP sessions disappear when the server restarts.
+- CORS allows configured `CLIENT_URL` origins; set it to the production website origin.
+- OTP sessions are stored in MongoDB with a TTL index, so they can be verified across restarts and app instances.
 - The priority scheduler is in-process; multi-instance deployments need an external scheduler or distributed locking.
 - No license file is currently included.

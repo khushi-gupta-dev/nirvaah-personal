@@ -4,24 +4,19 @@
  */
 const User = require("../models/User");
 const Admin = require("../models/Admin");
+const Otp = require("../models/Otp");
 const { validationResult } = require("express-validator");
 const crypto = require("crypto");
 const { sendOtpEmail } = require("../config/mailer");
 
-// In-memory OTP storage (Map: sessionId -> { otp, userId, expiresAt, attempts })
-const otpStore = new Map();
-
 const generateOTP = () => crypto.randomInt(1000, 10000).toString(); // 4-digit OTP
-
-// Clean up expired OTPs periodically
-setInterval(() => {
-  const now = new Date();
-  for (const [sessionId, data] of otpStore.entries()) {
-    if (data.expiresAt < now) {
-      otpStore.delete(sessionId);
-    }
-  }
-}, 60000); // Clean every minute
+const isValidOtpSessionId = (sessionId) =>
+  typeof sessionId === "string" && /^otp_[a-f0-9]{48}$/.test(sessionId);
+const hashOTP = (sessionId, otp) =>
+  crypto
+    .createHmac("sha256", process.env.JWT_SECRET)
+    .update(`${sessionId}:${otp}`)
+    .digest("hex");
 
 // Helper to send token response
 const sendTokenResponse = (user, statusCode, res, message = "Success", accountType = "citizen") => {
@@ -171,24 +166,26 @@ exports.sendOtp = async (req, res, next) => {
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
     const otpData = {
-      otp: code,
-      userId: user._id,
+      sessionId,
+      user: user._id,
       accountType,
+      accountModel: accountType === "admin" ? "Admin" : "User",
+      otpHash: hashOTP(sessionId, code),
       expiresAt,
       attempts: 0,
     };
 
+    await Otp.create(otpData);
     try {
       await sendOtpEmail(email, code);
     } catch (error) {
+      await Otp.deleteOne({ sessionId });
       console.error("Sign-in code email could not be delivered:", error.message);
       return res.status(503).json({
         success: false,
         message: "Could not send the verification email. Please try again later.",
       });
     }
-
-    otpStore.set(sessionId, otpData);
 
     res.status(200).json({ success: true, message: "OTP sent", sessionId });
   } catch (error) {
@@ -201,47 +198,64 @@ exports.sendOtp = async (req, res, next) => {
 exports.verifyOtp = async (req, res, next) => {
   try {
     const { sessionId, otp } = req.body;
-    if (!sessionId || !otp) {
+    if (!isValidOtpSessionId(sessionId) || typeof otp !== "string" || !otp.trim()) {
       return res
         .status(400)
         .json({ success: false, message: "Session ID and OTP are required" });
     }
 
-    const otpData = otpStore.get(sessionId);
+    const otpData = await Otp.findOne({ sessionId }).select("+otpHash");
     if (!otpData) {
       return res
         .status(401)
         .json({ success: false, message: "Invalid or expired session" });
     }
 
-    if (otpData.expiresAt < new Date()) {
-      otpStore.delete(sessionId);
+    if (otpData.expiresAt <= new Date()) {
+      await Otp.deleteOne({ _id: otpData._id });
       return res
         .status(410)
         .json({ success: false, message: "OTP expired", expired: true });
     }
 
     if (otpData.attempts >= 5) {
-      otpStore.delete(sessionId);
+      await Otp.deleteOne({ _id: otpData._id });
       return res.status(403).json({
         success: false,
         message: "Too many OTP attempts. Request a new code.",
       });
     }
 
-    if (otpData.otp !== otp.trim()) {
-      otpData.attempts += 1;
+    const submittedHash = hashOTP(sessionId, otp.trim());
+    const hashesMatch = crypto.timingSafeEqual(
+      Buffer.from(otpData.otpHash, "hex"),
+      Buffer.from(submittedHash, "hex"),
+    );
+    if (!hashesMatch) {
+      await Otp.findOneAndUpdate(
+        { _id: otpData._id, attempts: { $lt: 5 } },
+        { $inc: { attempts: 1 } },
+      );
       return res.status(401).json({ success: false, message: "Invalid OTP" });
     }
 
-    // OTP verified successfully
-    otpStore.delete(sessionId);
+    // Consume it once, including when multiple verification requests race.
+    const consumedOtp = await Otp.findOneAndDelete({
+      _id: otpData._id,
+      otpHash: otpData.otpHash,
+      expiresAt: { $gt: new Date() },
+    });
+    if (!consumedOtp) {
+      return res
+        .status(401)
+        .json({ success: false, message: "Invalid or expired session" });
+    }
 
     let user;
-    if (otpData.accountType === "admin") {
-      user = await Admin.findById(otpData.userId);
+    if (otpData.accountModel === "Admin") {
+      user = await Admin.findById(otpData.user);
     } else {
-      user = await User.findById(otpData.userId);
+      user = await User.findById(otpData.user);
     }
     
     if (!user) {
@@ -265,13 +279,13 @@ exports.verifyOtp = async (req, res, next) => {
 exports.resendOtp = async (req, res, next) => {
   try {
     const { sessionId } = req.body;
-    if (!sessionId) {
+    if (!isValidOtpSessionId(sessionId)) {
       return res
         .status(400)
         .json({ success: false, message: "Session ID required" });
     }
 
-    const otpData = otpStore.get(sessionId);
+    const otpData = await Otp.findOne({ sessionId });
     if (!otpData) {
       return res
         .status(404)
@@ -279,17 +293,24 @@ exports.resendOtp = async (req, res, next) => {
     }
 
     // Send a replacement code before invalidating the currently stored code.
+    if (otpData.expiresAt <= new Date()) {
+      await Otp.deleteOne({ _id: otpData._id });
+      return res
+        .status(410)
+        .json({ success: false, message: "OTP expired", expired: true });
+    }
+
     const code = generateOTP();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
     let user;
-    if (otpData.accountType === "admin") {
-      user = await Admin.findById(otpData.userId);
+    if (otpData.accountModel === "Admin") {
+      user = await Admin.findById(otpData.user);
     } else {
-      user = await User.findById(otpData.userId);
+      user = await User.findById(otpData.user);
     }
     if (!user) {
-      otpStore.delete(sessionId);
+      await Otp.deleteOne({ _id: otpData._id });
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
@@ -303,9 +324,21 @@ exports.resendOtp = async (req, res, next) => {
       });
     }
 
-    otpData.otp = code;
-    otpData.expiresAt = expiresAt;
-    otpData.attempts = 0;
+    const updatedOtp = await Otp.findOneAndUpdate(
+      { _id: otpData._id, expiresAt: { $gt: new Date() } },
+      {
+        $set: {
+          otpHash: hashOTP(sessionId, code),
+          expiresAt,
+          attempts: 0,
+        },
+      },
+    );
+    if (!updatedOtp) {
+      return res
+        .status(404)
+        .json({ success: false, message: "OTP session not found" });
+    }
 
     res.status(200).json({ success: true, message: "OTP resent", sessionId });
   } catch (error) {
